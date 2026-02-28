@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">SitePilot</string>
-    <string name="title_activity_main">SitePilot</string>
-    <string name="package_name">com.sitepilot.app</string>
-    <string name="custom_url_scheme">com.sitepilot.app</string>
-</resources>
