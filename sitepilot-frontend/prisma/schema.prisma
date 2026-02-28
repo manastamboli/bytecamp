@@ -1,0 +1,563 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String       @id
+  email            String       @unique
+  emailVerified    Boolean
+  name             String?
+  image            String?
+  createdAt        DateTime
+  updatedAt        DateTime
+  twoFactorEnabled Boolean?
+  accounts         Account[]
+  passkeys         Passkey[]
+  sessions         Session[]
+  tenantUsers      TenantUser[]
+  ownedTenants     Tenant[]     @relation("TenantOwner")
+  twoFactors       TwoFactor[]
+
+  @@index([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                   String    @id
+  accountId            String
+  providerId           String
+  userId               String
+  accessToken          String?
+  refreshToken         String?
+  idToken              String?
+  expiresAt            DateTime?
+  password             String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  accessTokenExpiresAt DateTime?
+  scope                String?
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+model TwoFactor {
+  id          String   @id
+  secret      String
+  backupCodes String
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+model Passkey {
+  id                   String   @id
+  name                 String?
+  publicKey            String
+  userId               String
+  webauthnUserID       String
+  counter              Int
+  deviceType           String
+  backedUp             Boolean
+  transports           String?
+  credentialDeviceType String?
+  credentialBackedUp   Boolean?
+  createdAt            DateTime @default(now())
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkey")
+}
+
+model Tenant {
+  id                 String        @id @default(uuid())
+  name               String
+  slug               String        @unique
+  description        String?
+  logo               String?
+  plan               PlanType      @default(FREE)
+  tokenUsage         Int           @default(0)
+  tokenLimit         Int           @default(10000)
+  ownerId            String
+  brandKit           Json?         @default("{}")
+  workspaceType      WorkspaceType?
+  defaultMemberRole  Role          @default(EDITOR)
+  onboardingComplete Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  sites              Site[]
+  tenantUsers        TenantUser[]
+  invitations        Invitation[]
+  forms              Form[] // Temporary for migration
+  owner              User          @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  media              Media[]
+  subscription Subscription?
+
+  @@index([slug])
+  @@index([ownerId])
+  @@map("tenants")
+}
+
+model TenantUser {
+  id        String   @id @default(uuid())
+  role      Role     @default(EDITOR)
+  userId    String
+  tenantId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([role])
+  @@map("tenant_users")
+}
+
+model Invitation {
+  id        String           @id @default(uuid())
+  email     String
+  role      Role             @default(EDITOR)
+  status    InvitationStatus @default(PENDING)
+  token     String           @unique @default(uuid())
+  tenantId  String
+  invitedBy String
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([email, tenantId])
+  @@index([tenantId])
+  @@index([email])
+  @@index([token])
+  @@index([status])
+  @@map("invitations")
+}
+
+model Site {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String  @unique // Globally unique for <slug>.sitepilot.devally.in
+  description String?
+  domain      String? @unique // Custom domain (optional)
+  favicon     String?
+
+  // CloudFront Tenant Metadata
+  cfTenantId          String? @unique // Logical ID or association record
+  cfTenantArn         String? // Reference to associated CF resources
+  cfConnectionGroupId String? // Associated connection group ID
+  cfStatus            String  @default("PROVISIONING") // PROVISIONING, LIVE, ERROR
+
+  // Shared theme applied to all pages
+  theme Json @default("{}")
+
+  // Global settings (scripts, analytics, etc.)
+  globalSettings Json @default("{}")
+
+  tenantId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pages           Page[]
+  versions        SiteVersion[]
+  contentVersions ContentVersion[]
+  deployments     Deployment[]
+  forms           Form[] // Site-specific forms
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customDomains   CustomDomain[]
+  visitorSessions VisitorSession[]
+  pageViews       PageView[]
+
+  @@index([tenantId])
+  @@index([slug])
+  @@map("sites")
+}
+
+model CustomDomain {
+  id     String             @id @default(uuid())
+  domain String             @unique
+  status CustomDomainStatus @default(PENDING)
+
+  // DNS Verification
+  verificationToken  String    @unique @default(uuid())
+  verificationRecord String? // TXT record value
+  verifiedAt         DateTime?
+
+  // SSL Certificate (ACM)
+  certificateArn        String?   @unique
+  certificateStatus     String? // PENDING_VALIDATION, ISSUED, FAILED
+  certificateValidation Json? // ACM DNS validation records
+  certificateIssuedAt   DateTime?
+
+  // CloudFront Attachment
+  attachedToCF Boolean   @default(false)
+  attachedAt   DateTime?
+
+  // Final DNS Configuration
+  cnameTarget   String? // CloudFront endpoint to CNAME to
+  cnameVerified Boolean @default(false)
+
+  // Activation
+  activatedAt   DateTime?
+  lastCheckedAt DateTime?
+
+  // Site relation
+  siteId String
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([siteId])
+  @@index([status])
+  @@index([domain])
+  @@map("custom_domains")
+}
+
+enum CustomDomainStatus {
+  PENDING // Domain added, awaiting verification
+  VERIFYING // Checking DNS TXT record
+  VERIFIED // Ownership verified
+  SSL_PENDING // ACM certificate requested
+  SSL_VALIDATING // Waiting for ACM DNS validation
+  SSL_ISSUED // Certificate issued
+  ATTACHING // Attaching to CloudFront
+  DNS_PENDING // Waiting for final CNAME
+  ACTIVE // Fully active and serving
+  FAILED // Verification or setup failed
+}
+
+model Page {
+  id   String @id @default(uuid())
+  name String
+  slug String @default("/")
+
+  // Per-page SEO metadata
+  seo Json @default("{}")
+
+  // Builder layout — the containers array for this page only
+  layout Json @default("[]")
+
+  sortOrder   Int       @default(0)
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+
+  siteId    String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([siteId, slug])
+  @@index([siteId])
+  @@index([isPublished])
+  @@map("pages")
+}
+
+model SiteVersion {
+  id            String        @id @default(uuid())
+  versionNumber Int           @default(1)
+  status        VersionStatus @default(DRAFT)
+  builderData   Json
+  liveRoomId    String?       @unique
+  name          String?
+  description   String?
+  publishedAt   DateTime?
+  siteId        String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  site          Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, versionNumber])
+  @@index([siteId])
+  @@index([status])
+  @@index([publishedAt])
+  @@map("site_versions")
+}
+
+model ContentVersion {
+  id             String   @id @default(uuid())
+  versionNumber  Int      @default(1)
+  pages          Json // Array of { slug, layout, seo, name }
+  theme          Json     @default("{}")
+  globalSettings Json     @default("{}")
+  siteId         String
+  createdAt      DateTime @default(now())
+
+  site        Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  deployments Deployment[]
+
+  @@index([siteId])
+  @@map("content_versions")
+}
+
+model Deployment {
+  id             String  @id @default(uuid())
+  deploymentId   String  @unique // UUID used in S3 path
+  deploymentName String? // User-provided friendly name
+  s3Key          String // Full S3 key prefix: userId/businessId/siteId/deployments/{deploymentId}
+  isActive       Boolean @default(false) // Is this the current live deployment?
+  kvsUpdated     Boolean @default(false) // Was CloudFront KVS updated for this deployment?
+
+  siteId           String
+  contentVersionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site           Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  contentVersion ContentVersion? @relation(fields: [contentVersionId], references: [id])
+
+  @@index([siteId])
+  @@index([isActive])
+  @@index([deploymentId])
+  @@map("deployments")
+}
+
+enum Role {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum WorkspaceType {
+  AGENCY
+  BUSINESS
+  PERSONAL
+  STARTUP
+}
+
+enum PlanType {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
+}
+
+enum VersionStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+model Subscription {
+  id                     String             @id @default(uuid())
+
+  // Tenant link
+  tenantId               String             @unique
+  tenant                 Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Owner user (billing contact)
+  userId                 String
+
+  // Razorpay IDs
+  razorpayCustomerId     String?
+  razorpaySubscriptionId String?            @unique
+  razorpayPlanId         String?            // Razorpay plan identifier
+
+  // Plan & Status
+  planType               PlanType           @default(FREE)
+  status                 SubscriptionStatus @default(TRIAL)
+
+  // Billing cycle
+  billingCycle           String             @default("monthly") // monthly | yearly
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+
+  // Grace period after payment failure
+  gracePeriodEnd         DateTime?
+
+  // Cancellation
+  cancelAtPeriodEnd      Boolean            @default(false)
+  cancelledAt            DateTime?
+
+  // Webhook idempotency: store last processed event id
+  lastWebhookEventId     String?
+
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([tenantId])
+  @@index([razorpaySubscriptionId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Form {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String
+  description String?
+
+  // Form configuration (fields, validation, etc.)
+  schema Json @default("[]")
+
+  // Form settings (submit action, email notifications, etc.)
+  settings Json @default("{}")
+
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+
+  // Foreign keys - NOW BELONGS TO SITE
+  siteId String?
+  site   Site?   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  // Temporary for migration - will be removed
+  tenantId String?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  versions    FormVersion[]
+  submissions FormSubmission[]
+
+  @@unique([siteId, slug])
+  @@index([siteId])
+  @@index([slug])
+  @@map("forms")
+}
+
+model FormSubmission {
+  id String @id @default(uuid())
+
+  // Submitted data (JSON)
+  data Json
+
+  // Metadata
+  ipAddress String?
+  userAgent String?
+
+  // Foreign keys
+  formId String
+  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([formId])
+  @@index([createdAt])
+  @@map("form_submissions")
+}
+
+model FormVersion {
+  id            String        @id @default(uuid())
+  versionNumber Int           @default(1)
+  status        VersionStatus @default(DRAFT)
+
+  // Snapshot of form schema at this version
+  schema   Json @default("[]")
+  settings Json @default("{}")
+
+  name        String?
+  description String?
+  publishedAt DateTime?
+  formId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  form        Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@unique([formId, versionNumber])
+  @@index([formId])
+  @@index([status])
+  @@index([publishedAt])
+  @@map("form_versions")
+}
+
+model Media {
+  id   String @id @default(uuid())
+  url  String
+  name String
+
+  // Foreign keys
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("media")
+}
+
+model VisitorSession {
+  id        String   @id @default(uuid())
+  siteId    String
+  ipHash    String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  pageViews PageView[]
+
+  @@index([siteId])
+  @@map("visitor_sessions")
+}
+
+model PageView {
+  id        String   @id @default(uuid())
+  sessionId String
+  siteId    String
+  pageSlug  String
+  duration  Int      @default(0) // seconds
+  enteredAt DateTime @default(now())
+  exitedAt  DateTime?
+
+  session   VisitorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  site      Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([siteId])
+  @@index([pageSlug])
+  @@map("page_views")
+}

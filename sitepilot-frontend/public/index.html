@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SitePilot — Tracker Test Page</title>
+
+  <!--
+    TRACKER SCRIPT
+    ─────────────────────────────────────────────────────────
+    • data-site  → Your site's UUID from the DB
+    • data-page  → The page slug (e.g. "/" or "/about")
+    • defer      → Script executes after DOM is ready
+    • src        → Served from the Next.js app's public/ folder;
+                   the tracker derives the API base from this URL automatically.
+
+    To test locally:   open http://localhost:3000/index.html
+    To test on S3:     the published HTML files have this injected automatically.
+    ─────────────────────────────────────────────────────────
+  -->
+  <script
+    src="/tracker.js"
+    data-site="TEST_SITE_ID_REPLACE_ME"
+    data-page="/"
+    defer
+  ></script>
+</head>
+
+<body style="font-family: system-ui, sans-serif; max-width: 800px; margin: 60px auto; padding: 0 24px; color: #1d2321;">
+
+  <header style="margin-bottom: 48px;">
+    <div style="display:inline-flex;align-items:center;gap:10px;background:#0b1411;color:#d3ff4a;padding:8px 16px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;">
+      SitePilot
+    </div>
+  </header>
+
+  <main>
+    <h1 style="font-size: 2.5rem; font-weight: 900; letter-spacing: -.04em; margin-bottom: 16px;">
+      Tracker Test Page
+    </h1>
+
+    <p style="font-size: 1.1rem; color: #4b5563; line-height: 1.7; margin-bottom: 32px;">
+      This page is used to verify the <code>tracker.js</code> analytics script is working correctly.
+      Open your browser's <strong>DevTools Console</strong> to see the coloured
+      <code>[SitePilot Analytics]</code> log messages.
+    </p>
+
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:24px;margin-bottom:24px;">
+      <h2 style="font-size:1rem;font-weight:700;color:#166534;margin-bottom:12px;">✅ What to look for in the console</h2>
+      <ul style="color:#15803d;font-size:.9rem;line-height:2;padding-left:20px;">
+        <li><code>[SitePilot Analytics]</code> Initialising tracker (collapsed group)</li>
+        <li><code>Script src</code>, <code>API base</code>, <code>Site ID</code>, <code>Page slug</code></li>
+        <li><code>/enter response status : 200</code></li>
+        <li><code>✅ Page view recorded. pageViewId: …</code></li>
+        <li>On tab close / navigation: <code>pagehide fired</code> + <code>Sending /exit</code></li>
+      </ul>
+    </div>
+
+    <div style="background:#fefce8;border:1px solid #fde047;border-radius:12px;padding:24px;">
+      <h2 style="font-size:1rem;font-weight:700;color:#854d0e;margin-bottom:12px;">⚠️ Common issues</h2>
+      <ul style="color:#92400e;font-size:.9rem;line-height:2;padding-left:20px;">
+        <li><strong>404 on /api/analytics/enter</strong> — make sure <code>npm run dev</code> is running on port 3000</li>
+        <li><strong>data-site is "TEST_SITE_ID_REPLACE_ME"</strong> — replace with a real site UUID from your DB</li>
+        <li><strong>CORS error</strong> — on S3 sites, ensure your API routes return <code>Access-Control-Allow-Origin: *</code></li>
+        <li><strong>No console logs at all</strong> — the script tag is missing or the src path is wrong</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer style="margin-top:80px;padding-top:24px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:.8rem;">
+    SitePilot Analytics — Tracker Test Page
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+    "appId": "com.sitepilot.app",
+    "appName": "SitePilot",
+    "webDir": "www",
+    "server": {
+        "url": "https://YOUR_VERCEL_URL.vercel.app",
+        "androidScheme": "https",
+        "cleartext": false
+    },
+    "android": {
+        "allowMixedContent": false,
+        "captureInput": true,
+        "webContentsDebuggingEnabled": false
+    },
+    "ios": {
+        "contentInset": "automatic",
+        "scrollEnabled": true
+    },
+    "plugins": {
+        "SplashScreen": {
+            "launchShowDuration": 2000,
+            "launchAutoHide": true,
+            "backgroundColor": "#0f0f17",
+            "androidSplashResourceName": "splash",
+            "androidScaleType": "CENTER_CROP",
+            "showSpinner": false,
+            "splashFullScreen": true,
+            "splashImmersive": true
+        },
+        "StatusBar": {
+            "style": "dark",
+            "backgroundColor": "#0f0f17"
+        }
+    }
+}
